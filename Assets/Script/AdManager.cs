@@ -28,6 +28,11 @@ public class AdManager : MonoBehaviour
     }
 
     private InterstitialAd interstitial;
+    private RewardedAd rewardedAd;
+
+    public delegate void RewardAdCallBack(bool x);
+
+    public RewardAdCallBack rwCB;
 
     void Start()
     {
@@ -52,7 +57,6 @@ public class AdManager : MonoBehaviour
         MobileAdsEventExecutor.ExecuteInUpdate(() => {
             Debug.Log("Initialization complete");
             adsInitiated = true;
-            RequestInterstitial();
         });
     }
 
@@ -62,7 +66,7 @@ public class AdManager : MonoBehaviour
         
     }
 
-    private void RequestInterstitial()
+    public void RequestInterstitial()
     {
         string adUnitId = "ca-app-pub-3098073576690056/1275464862";
         //string adUnitId = "ca-app-pub-3940256099942544/1033173712";
@@ -87,7 +91,7 @@ public class AdManager : MonoBehaviour
 
     public void LoadAd()
     {
-        if(adsInitiated && !interstitial.IsLoaded())
+        if(adsInitiated && (interstitial==null || !interstitial.IsLoaded()))
         {
             Debug.Log("ad is not loaded, requesting to load");
             RequestInterstitial();
@@ -141,12 +145,100 @@ public class AdManager : MonoBehaviour
     }
 
 
+    public void RequestRewardAd()
+    {
+        string adUnitId = "ca-app-pub-3098073576690056/5557037375";
+        //string adUnitId = "ca-app-pub-3940256099942544/1033173712";
+
+        if (rewardedAd != null)
+        {
+            rewardedAd = null;
+        }
+
+
+        this.rewardedAd = new RewardedAd(adUnitId);
+
+        this.rewardedAd.OnAdLoaded += HandleRewardedAdLoaded;
+        this.rewardedAd.OnAdFailedToLoad += HandleRewardedAdFailedToLoad;
+        this.rewardedAd.OnAdOpening += HandleRewardedAdOpening;
+        this.rewardedAd.OnAdFailedToShow += HandleRewardedAdFailedToShow;
+        this.rewardedAd.OnUserEarnedReward += HandleUserEarnedReward;
+        this.rewardedAd.OnAdClosed += HandleRewardedAdClosed;
+
+        AdRequest request = new AdRequest.Builder().Build();
+        this.rewardedAd.LoadAd(request);
+    }
+
+    public void LoadRewardAd()
+    {
+        if (adsInitiated && (rewardedAd == null || !rewardedAd.IsLoaded()))
+        {
+            Debug.Log("ad is not loaded, requesting to load");
+            RequestRewardAd();
+        }
+        else
+        {
+            Debug.Log("Add is loaded already");
+        }
+    }
+
+    public void HandleRewardedAdLoaded(object sender, EventArgs args)
+    {
+        Debug.Log("HandleRewardedAdLoaded event received");
+    }
+
+    public void HandleRewardedAdFailedToLoad(object sender, AdErrorEventArgs args)
+    {
+        Debug.Log("HandleRewardedAdFailedToLoad event received with message: "+ args.Message);
+    }
+
+    public void HandleRewardedAdOpening(object sender, EventArgs args)
+    {
+        Debug.Log("HandleRewardedAdOpening event received");
+    }
+
+    public void HandleRewardedAdFailedToShow(object sender, AdErrorEventArgs args)
+    {
+        Debug.Log("HandleRewardedAdFailedToShow event received with message: "+ args.Message);
+    }
+
+    public void HandleRewardedAdClosed(object sender, EventArgs args)
+    {
+        rwCB(false);
+        Debug.Log("HandleRewardedAdClosed event received");
+    }
+
+    public void HandleUserEarnedReward(object sender, Reward args)
+    {
+        string type = args.Type;
+        double amount = args.Amount;
+        rwCB(true);
+        Debug.Log("HandleRewardedAdRewarded event received for "+ amount.ToString() + " " + type);
+    }
+
+    public void DisplayRewardAd(RewardAdCallBack rwCB)
+    {
+        if (this.rewardedAd.IsLoaded())
+        {
+            this.rewardedAd.Show();
+            this.rwCB = rwCB;
+        }
+        else
+        {
+            Debug.Log("Interstitial is unloaded");
+        }
+    }
+
 
     void OnDestroy()
     {
         if (interstitial != null)
         {
             interstitial.Destroy();
+        }
+        if (rewardedAd != null)
+        {
+            rewardedAd = null;
         }
     }
 }

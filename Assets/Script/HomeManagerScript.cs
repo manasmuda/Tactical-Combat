@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,10 +23,33 @@ public class HomeManagerScript : MonoBehaviour
     public Button MyStrategiesButton;
 
     private Client client;
+    private LoginClient loginClient;
+
+    private LoginClient.UserDataCB udcb;
+
+    public Text profileNameText;
+    public Image profileImage;
+
+    public Text levelText;
+    public Image levelImage;
+    public Slider levelPoints;
+    public Text ticketsText;
+
+    public List<Sprite> LevelSprites;
 
     // Start is called before the first frame update
     void Start()
     {
+        loginClient = GameObject.Find("LoginClient").GetComponent<LoginClient>();
+        udcb = UpdateUserData;
+        if (loginClient.curUserData == null)
+        {
+            loginClient.GetUserData(udcb);
+        }
+        else
+        {
+            UpdateUserData(loginClient.curUserData);
+        }
         logoutButton.onClick.AddListener(Logout);
         randomPlayButton.onClick.AddListener(RandomPlay);
         playWithFriendButton.onClick.AddListener(PlayWithFriend);
@@ -34,6 +58,26 @@ public class HomeManagerScript : MonoBehaviour
         TestGameButton.onClick.AddListener(TestGame);
         MyStrategiesButton.onClick.AddListener(MyStrategies);
         client = GameObject.Find("Client").GetComponent<Client>();
+    }
+
+    public void UpdateUserData(Users userData)
+    {
+        profileNameText.text = userData.name;
+        levelText.text = userData.level;
+        ticketsText.text = "Tickets: "+Convert.ToString(userData.tickets);
+        levelPoints.value = userData.levelPoints;
+        if (userData.level == "NOVICE")
+        {
+            levelImage.sprite = LevelSprites[0];
+        }
+        else if (userData.level == "AMATEUR")
+        {
+            levelImage.sprite = LevelSprites[1];
+        }
+        else if (userData.level == "PRO")
+        {
+            levelImage.sprite = LevelSprites[2];
+        }
     }
 
     void Logout()
@@ -62,7 +106,7 @@ public class HomeManagerScript : MonoBehaviour
 
     void PlayWithFriend()
     {
-        client.FetchGameAndPlayerSession();
+        //client.FetchGameAndPlayerSession();
     }
 
     void MyStrategies() 

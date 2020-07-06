@@ -49,6 +49,7 @@ public class Client : MonoBehaviour
     public delegate void gameStartCallBack(bool x);
     public delegate void playerJoinedCallBack(float x,string playerId,Dictionary<string,object> armyIds);
     public delegate void connectionCallBack(bool x);
+    public delegate void opponentLeftCallBack();
 
     public static Client clientInstance = null;
 
@@ -225,7 +226,9 @@ public class Client : MonoBehaviour
         gameStartCallBack gscb = gameStaredCB;
         playerJoinedCallBack pjcb = playerJoinedCB;
         connectionCallBack ccb = connectionCB;
-        this.networkClient = new NetworkClient(gscb,pjcb,ccb);
+        opponentLeftCallBack opcb = HandleOpponentLeft;
+        this.networkClient = new NetworkClient(gscb,pjcb,ccb,opcb);
+
 
         yield return StartCoroutine(this.networkClient.DoMatchMakingAndConnect(playerSessionObj));
 
@@ -262,6 +265,10 @@ public class Client : MonoBehaviour
             {
                 HandleBattleResult(msg);
             }
+            else if (msg.messageType == MessageType.GameResult)
+            {
+                HandleGameResult(msg);
+            }
         }
         messagesToProcess.Clear();
     }
@@ -283,5 +290,37 @@ public class Client : MonoBehaviour
     {
         Debug.Log("Battle Result");
         gameManagerScript.HandleBattleResult(msg);
+    }
+
+    void HandleGameResult(SimpleMessage msg)
+    {
+        Debug.Log("Game Result");
+        if (Convert.ToBoolean(msg.win))
+        {
+            gameManagerScript.GameResult(true,"Your Opponent King Died");
+        }
+        else
+        {
+            gameManagerScript.GameResult(false, "Your King Died");
+        }
+        ResetClient();
+    }
+
+    public void HandleOpponentLeft()
+    {
+        Debug.Log("Opponent Left");
+        gameManagerScript.GameResult(true, "Your Opponent Left The Game");
+        ResetClient();
+    }
+
+    void ResetClient()
+    {
+        connectionSuccess = false;
+        networkClient = null;
+        playerSessionObj = new PlayerSessionObject();
+        messagesToProcess.Clear();
+        playerWaitTime = 0.0f;
+        gameStarted = false;
+        playerJoined = false;
     }
 }

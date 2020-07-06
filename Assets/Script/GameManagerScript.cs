@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class GameManagerScript : MonoBehaviour
 {
@@ -77,8 +78,13 @@ public class GameManagerScript : MonoBehaviour
     public CanvasGroup FirstStrategyCG;
     public CanvasGroup SecondStrategyCG;
     public CanvasGroup ThirdStrategyCG;
+    public CanvasGroup ResultPanel;
+    public Text ResultText;
+    public Text ResultMsgText;
+    public Button ResultDoneButton;
+    public Button RewardTicketButton;
 
-    public bool myTurn=false;
+    public bool myTurn = false;
     public bool oppTurn = false;
 
     private List<Dictionary<string, int>> strategies;
@@ -86,12 +92,14 @@ public class GameManagerScript : MonoBehaviour
     private float timer = 0f;
     private bool timerMode = false;
 
-    public int selectedPiecePos=-1;
+    public int selectedPiecePos = -1;
     public GameObject selectedGameObject = null;
     public List<int> movePos = null;
     public List<GameObject> movePosObject = null;
 
-    private Queue<Action> _mainThreadQueue = new Queue<Action>();
+    public AdManager adManager;
+    public bool rewardAwarded = false;
+    public Image rewardedImage;
 
     // Start is called before the first frame update
     void Start()
@@ -100,8 +108,11 @@ public class GameManagerScript : MonoBehaviour
         client = GameObject.Find("Client").GetComponent<Client>();
         client.gameManagerScript = this;
         loginClient = GameObject.Find("LoginClient").GetComponent<LoginClient>();
+        adManager = GameObject.Find("AdManager").GetComponent<AdManager>();
         if (client.gameStarted)
         {
+            adManager.LoadAd();
+            adManager.LoadRewardAd();
             myPlayerData = new MyPlayerData(client.myPlayerId);
             oppPlayerData = new OppPlayerData();
             if (myPlayerData.playerId == "1")
@@ -149,20 +160,40 @@ public class GameManagerScript : MonoBehaviour
             StrategyManagerScript.LoadStrategyCallBack lscb = LoadStrategyCB;
             loginClient.getUserStrategies(lscb);
             zoomSlider.onValueChanged.AddListener(delegate { zoomCameraChange(); });
+            ResultDoneButton.onClick.AddListener(delegate { SceneManager.LoadScene("Home"); });
+            RewardTicketButton.onClick.AddListener(RewardAdLoad);
         }
     }
 
     void zoomCameraChange()
     {
-        float zv=myPlayerData.fDir*zoomSlider.value;
-        myCamera.transform.position = new Vector3(0f,17.5f,18.5f*zv);
+        float zv = myPlayerData.fDir * zoomSlider.value;
+        myCamera.transform.position = new Vector3(0f, 17.5f, 18.5f * zv);
     }
 
-    void LoadStrategyCB(List<Dictionary<string,int>> x)
+    void RewardAdLoad()
     {
-        FirstStrategyButton.onClick.AddListener(delegate{ LoadStrategy(x[0]);});
-        SecondStrategyButton.onClick.AddListener(delegate { LoadStrategy(x[1]);});
-        ThirdStrategyButton.onClick.AddListener(delegate { LoadStrategy(x[2]);});
+        if (!rewardAwarded)
+        {
+            AdManager.RewardAdCallBack rscb = RewardCB;
+            adManager.DisplayRewardAd(rscb);
+        }
+    }
+
+    void RewardCB(bool x)
+    {
+        if (x)
+        {
+            rewardAwarded = true;
+            rewardedImage.enabled=true;
+        }
+    }
+
+    void LoadStrategyCB(List<Dictionary<string, int>> x)
+    {
+        FirstStrategyButton.onClick.AddListener(delegate { LoadStrategy(x[0]); });
+        SecondStrategyButton.onClick.AddListener(delegate { LoadStrategy(x[1]); });
+        ThirdStrategyButton.onClick.AddListener(delegate { LoadStrategy(x[2]); });
         RandomStrategyButton.onClick.AddListener(delegate { LoadStrategy(StrategyManagerScript.randomStrategyGenerator()); });
         if (x != null)
         {
@@ -227,11 +258,11 @@ public class GameManagerScript : MonoBehaviour
                             selectedPiecePos = sp;
                             tempx = (pj - 5) * (2.5f) + (1.25f);
                             tempy = (5 - pi) * (2.5f) - (1.25f);
-                            selectedGameObject = Instantiate(baseObject, new Vector3(tempx, 0.25f, tempy), Quaternion.Euler(0f,0f,0f)) as GameObject;
+                            selectedGameObject = Instantiate(baseObject, new Vector3(tempx, 0.25f, tempy), Quaternion.Euler(0f, 0f, 0f)) as GameObject;
                             movePos = new List<int> { };
                             movePosObject = new List<GameObject> { };
-                            if (pi > 0 && !(boardPosStates[10 * (pi - 1) + pj] == -1 || boardPosStates[10 * (pi - 1) + pj]==Convert.ToInt32(myPlayerData.playerId)))
-                            { 
+                            if (pi > 0 && !(boardPosStates[10 * (pi - 1) + pj] == -1 || boardPosStates[10 * (pi - 1) + pj] == Convert.ToInt32(myPlayerData.playerId)))
+                            {
 
                                 movePos.Add(10 * (pi - 1) + pj);
                                 tempx = (pj - 5) * (2.5f) + (1.25f);
@@ -247,7 +278,7 @@ public class GameManagerScript : MonoBehaviour
                                 GameObject tempObject = Instantiate(baseObject, new Vector3(tempx, 0.25f, tempy), Quaternion.Euler(0f, 0f, 0f)) as GameObject;
                                 movePosObject.Add(tempObject);
                             }
-                            if (pj > 0 && !(boardPosStates[10 * (pi) + (pj-1)] == -1 || boardPosStates[10 * (pi) + (pj-1)] == Convert.ToInt32(myPlayerData.playerId)))
+                            if (pj > 0 && !(boardPosStates[10 * (pi) + (pj - 1)] == -1 || boardPosStates[10 * (pi) + (pj - 1)] == Convert.ToInt32(myPlayerData.playerId)))
                             {
                                 movePos.Add(10 * (pi) + (pj - 1));
                                 tempx = ((pj - 1) - 5) * (2.5f) + (1.25f);
@@ -255,7 +286,7 @@ public class GameManagerScript : MonoBehaviour
                                 GameObject tempObject = Instantiate(baseObject, new Vector3(tempx, 0.25f, tempy), Quaternion.Euler(0f, 0f, 0f)) as GameObject;
                                 movePosObject.Add(tempObject);
                             }
-                            if (pj < 9 && !(boardPosStates[10 * (pi) + (pj+1)] == -1 || boardPosStates[10 * (pi) + (pj+1)] == Convert.ToInt32(myPlayerData.playerId)))
+                            if (pj < 9 && !(boardPosStates[10 * (pi) + (pj + 1)] == -1 || boardPosStates[10 * (pi) + (pj + 1)] == Convert.ToInt32(myPlayerData.playerId)))
                             {
                                 movePos.Add(10 * (pi) + (pj + 1));
                                 tempx = ((pj + 1) - 5) * (2.5f) + (1.25f);
@@ -271,12 +302,12 @@ public class GameManagerScript : MonoBehaviour
                             {
                                 SimpleMessage msg = new SimpleMessage(MessageType.PlayerMove);
                                 msg.playerId = myPlayerData.playerId;
-                                msg.dictData.Add("id",myPlayerData.positionIdMatcher[selectedPiecePos]);
+                                msg.dictData.Add("id", myPlayerData.positionIdMatcher[selectedPiecePos]);
                                 msg.dictData.Add("source", selectedPiecePos);
                                 msg.dictData.Add("dest", sp);
                                 client.networkClient.SendMessage(msg);
-                                showPanel(MessagePanel);
-                                MessageText.text = "Battle Started\nWaiting For Result";
+                                //showPanel(MessagePanel);
+                                //MessageText.text = "Battle Started\nWaiting For Result";
                                 selectedPiecePos = -1;
                                 Destroy(selectedGameObject);
                                 if (movePosObject != null)
@@ -302,7 +333,7 @@ public class GameManagerScript : MonoBehaviour
             {
                 myTimer.text = Convert.ToString(Convert.ToInt32(Math.Floor(timer)));
             }
-            else if(oppTurn)
+            else if (oppTurn)
             {
                 oppTimer.text = Convert.ToString(Convert.ToInt32(Math.Floor(timer)));
             }
@@ -313,7 +344,7 @@ public class GameManagerScript : MonoBehaviour
                     myTurn = false;
                     myTimer.text = "";
                 }
-                else if(oppTurn)
+                else if (oppTurn)
                 {
                     oppTurn = false;
                     oppTimer.text = "";
@@ -336,14 +367,14 @@ public class GameManagerScript : MonoBehaviour
         }
     }
 
-    void checkBoardIndex(float x,float y)
+    void checkBoardIndex(float x, float y)
     {
-        int i = Convert.ToInt32((12.5-y)/2.5);
-        int j = Convert.ToInt32((12.5-x)/2.5);
+        int i = Convert.ToInt32((12.5 - y) / 2.5);
+        int j = Convert.ToInt32((12.5 - x) / 2.5);
 
     }
 
-    void LoadStrategy(Dictionary<string,int> loadingStrategy)
+    void LoadStrategy(Dictionary<string, int> loadingStrategy)
     {
         showLoading();
         List<string> keys = new List<string>(loadingStrategy.Keys);
@@ -354,7 +385,7 @@ public class GameManagerScript : MonoBehaviour
         Debug.Log("Message Initiated");
         for (int i = 0; i < keys.Count; i++)
         {
-            message.dictData.Add(keys[i],values[i]);
+            message.dictData.Add(keys[i], values[i]);
             int tempBoardPos = values[i];
             tempBoardPos = myPlayerData.offset + myPlayerData.posMultiplier * tempBoardPos;
             int ip = (tempBoardPos) / 10;
@@ -417,7 +448,7 @@ public class GameManagerScript : MonoBehaviour
             }
             else if (keys[i].Split('_')[0] == "knight")
             {
-                tempObject.GetComponent<MeshFilter>().mesh = knightsMesh[Convert.ToInt32(keys[i].Split('_')[2])-5];
+                tempObject.GetComponent<MeshFilter>().mesh = knightsMesh[Convert.ToInt32(keys[i].Split('_')[2]) - 5];
                 Material[] tempMaterials = tempObject.GetComponent<MeshRenderer>().materials;
                 tempMaterials[0] = myMat;
                 tempMaterials[1] = silverMat;
@@ -463,7 +494,7 @@ public class GameManagerScript : MonoBehaviour
                 tempMaterials[0] = oppMat;
                 tempMaterials[1] = goldMat;
                 tempObject.GetComponent<MeshRenderer>().materials = tempMaterials;
-                oppPlayerData.gold.Add(Convert.ToString(oppStrategyX[i]["id"]),oppStrategyX[i]);
+                oppPlayerData.gold.Add(Convert.ToString(oppStrategyX[i]["id"]), oppStrategyX[i]);
                 oppPlayerData.goldObjects.Add(Convert.ToString(oppStrategyX[i]["id"]), tempObject);
             }
             else if (oppStrategyX[i]["color"].ToString() == "silver")
@@ -472,7 +503,7 @@ public class GameManagerScript : MonoBehaviour
                 tempMaterials[0] = oppMat;
                 tempMaterials[1] = silverMat;
                 tempObject.GetComponent<MeshRenderer>().materials = tempMaterials;
-                oppPlayerData.silver.Add(Convert.ToString(oppStrategyX[i]["id"]),oppStrategyX[i]);
+                oppPlayerData.silver.Add(Convert.ToString(oppStrategyX[i]["id"]), oppStrategyX[i]);
                 oppPlayerData.silverObjects.Add(Convert.ToString(oppStrategyX[i]["id"]), tempObject);
             }
             else if (oppStrategyX[i]["color"].ToString() == "bronze")
@@ -481,7 +512,7 @@ public class GameManagerScript : MonoBehaviour
                 tempMaterials[0] = oppMat;
                 tempMaterials[1] = bronzeMat;
                 tempObject.GetComponent<MeshRenderer>().materials = tempMaterials;
-                oppPlayerData.bronze.Add(Convert.ToString(oppStrategyX[i]["id"]),oppStrategyX[i]);
+                oppPlayerData.bronze.Add(Convert.ToString(oppStrategyX[i]["id"]), oppStrategyX[i]);
                 oppPlayerData.bronzeObjects.Add(Convert.ToString(oppStrategyX[i]["id"]), tempObject);
             }
         }
@@ -489,10 +520,10 @@ public class GameManagerScript : MonoBehaviour
 
     public void LoadBoardStatePos(List<object> bpx)
     {
-        boardPosStates=bpx.ConvertAll<int>(k => Convert.ToInt32(k));
-        for(int i = 0; i < boardPosStates.Count; i++)
+        boardPosStates = bpx.ConvertAll<int>(k => Convert.ToInt32(k));
+        for (int i = 0; i < boardPosStates.Count; i++)
         {
-            Debug.Log(i+":"+boardPosStates[i]);
+            Debug.Log(i + ":" + boardPosStates[i]);
         }
     }
 
@@ -524,17 +555,22 @@ public class GameManagerScript : MonoBehaviour
     {
         hidePanel(MessagePanel);
         Debug.Log("Battle Result:" + msg.listdictdata.Count);
-        for(int i = 0; i < msg.listdictdata.Count; i++)
+        for (int i = 0; i < msg.listdictdata.Count; i++)
         {
             if (Convert.ToBoolean(msg.listdictdata[i]["myTeam"]))
             {
                 string tempId = Convert.ToString(msg.listdictdata[i]["id"]);
+                Debug.Log(tempId);
+                Debug.Log("My Action");
                 if (Convert.ToString(msg.listdictdata[i]["action"]) == "move")
                 {
                     Debug.Log("Action: Move");
                     boardPosStates = msg.listData.ConvertAll<int>(k => Convert.ToInt32(k));
                     myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(msg.listdictdata[i]["source"]));
-                    myPlayerData.positionIdMatcher.Add(Convert.ToInt32(msg.listdictdata[i]["dest"]), tempId);
+                    if (Convert.ToBoolean(msg.listdictdata[i]["win"]))
+                    {
+                        myPlayerData.positionIdMatcher.Add(Convert.ToInt32(msg.listdictdata[i]["dest"]), tempId);
+                    }
                     if (Convert.ToString(msg.listdictdata[i]["color"]) == "gold")
                     {
                         if (Convert.ToString(myPlayerData.king["id"]) == tempId)
@@ -657,17 +693,78 @@ public class GameManagerScript : MonoBehaviour
                         }
                     }
                 }
-                else if(Convert.ToString(msg.listdictdata[i]["action"]) == "power")
+                else if (Convert.ToString(msg.listdictdata[i]["action"]) == "power")
                 {
+                    Debug.Log("Action: power");
+                    if (Convert.ToString(msg.listdictdata[i]["color"]) == "silver")
+                    {
+                        int tempPower = Convert.ToInt32(myPlayerData.knights[tempId]["power"]);
+                        myPlayerData.knights[tempId]["power"] = tempPower + 1;
+                        myPlayerData.knightObjects[tempId].GetComponent<MeshFilter>().mesh = knightsMesh[tempPower - 4];
+                        Debug.Log("power" + tempPower);
+                    }
+                    else if (Convert.ToString(msg.listdictdata[i]["color"]) == "bronze")
+                    {
+                        int tempPower = Convert.ToInt32(myPlayerData.soldiers[tempId]["power"]);
+                        myPlayerData.soldiers[tempId]["power"] = tempPower + 1;
+                        myPlayerData.soldierObjects[tempId].GetComponent<MeshFilter>().mesh = soldiersMesh[tempPower - 0];
+                        Debug.Log("power" + tempPower);
+                    }
+                }
+                else if (Convert.ToString(msg.listdictdata[i]["action"]) == "upgrade")
+                {
+                    Debug.Log("Action: upgrade");
+                    if (Convert.ToString(msg.listdictdata[i]["color"]) == "silver")
+                    {
+                        myPlayerData.knights[tempId]["state"] = "upgraded";
+                        if (Convert.ToString(myPlayerData.knights[tempId]["serves"]) == "king")
+                        {
+                            myPlayerData.InitializeCommanderK(Convert.ToInt32(myPlayerData.knights[tempId]["posI"]), Convert.ToInt32(myPlayerData.knights[tempId]["posJ"]), Convert.ToString(msg.listdictdata[i]["newId"]));
+                            myPlayerData.commanderkObject = myPlayerData.knightObjects[tempId];
+                            myPlayerData.commanderkObject.GetComponent<MeshFilter>().mesh = commanderMesh;
+                            myPlayerData.knightObjects[tempId] = null;
+                            myPlayerData.positionIdMatcher[Convert.ToInt32(myPlayerData.knights[tempId]["posI"]) * 10 + Convert.ToInt32(myPlayerData.knights[tempId]["posJ"])] = Convert.ToString(msg.listdictdata[i]["newId"]);
+                        }
+                        else if (Convert.ToString(myPlayerData.knights[tempId]["serves"]) == "lord1")
+                        {
+                            myPlayerData.InitializeCommanderL1(Convert.ToInt32(myPlayerData.knights[tempId]["posI"]), Convert.ToInt32(myPlayerData.knights[tempId]["posJ"]), Convert.ToString(msg.listdictdata[i]["newId"]));
+                            myPlayerData.commanderl1Object = myPlayerData.knightObjects[tempId];
+                            myPlayerData.commanderl1Object.GetComponent<MeshFilter>().mesh = commanderMesh;
+                            myPlayerData.knightObjects[tempId] = null;
+                            myPlayerData.positionIdMatcher[Convert.ToInt32(myPlayerData.knights[tempId]["posI"]) * 10 + Convert.ToInt32(myPlayerData.knights[tempId]["posJ"])] = Convert.ToString(msg.listdictdata[i]["newId"]);
+                        }
+                        else if (Convert.ToString(myPlayerData.knights[tempId]["serves"]) == "lord2")
+                        {
+                            myPlayerData.InitializeCommanderL2(Convert.ToInt32(myPlayerData.knights[tempId]["posI"]), Convert.ToInt32(myPlayerData.knights[tempId]["posJ"]), Convert.ToString(msg.listdictdata[i]["newId"]));
+                            myPlayerData.commanderl2Object = myPlayerData.knightObjects[tempId];
+                            myPlayerData.commanderl2Object.GetComponent<MeshFilter>().mesh = commanderMesh;
+                            myPlayerData.knightObjects[tempId] = null;
+                            myPlayerData.positionIdMatcher[Convert.ToInt32(myPlayerData.knights[tempId]["posI"]) * 10 + Convert.ToInt32(myPlayerData.knights[tempId]["posJ"])] = Convert.ToString(msg.listdictdata[i]["newId"]);
+                        }
+                    }
+                    else if (Convert.ToString(msg.listdictdata[i]["color"]) == "bronze")
+                    {
+                        myPlayerData.soldiers[tempId]["state"] = "upgraded";
+                        myPlayerData.addKnight(Convert.ToInt32(myPlayerData.soldiers[tempId]["posI"]), Convert.ToInt32(myPlayerData.soldiers[tempId]["posJ"]), 5, Convert.ToString(myPlayerData.soldiers[tempId]["serves"]), Convert.ToString(msg.listdictdata[i]["newId"]));
+                        myPlayerData.knightObjects.Add(Convert.ToString(msg.listdictdata[i]["newId"]), myPlayerData.soldierObjects[tempId]);
+                        myPlayerData.knightObjects[Convert.ToString(msg.listdictdata[i]["newId"])].GetComponent<MeshFilter>().mesh = knightsMesh[0];
+                        Material[] tempMaterials = myPlayerData.knightObjects[Convert.ToString(msg.listdictdata[i]["newId"])].GetComponent<MeshRenderer>().materials;
+                        tempMaterials[0] = myMat;
+                        tempMaterials[1] = silverMat;
+                        myPlayerData.knightObjects[Convert.ToString(msg.listdictdata[i]["newId"])].GetComponent<MeshRenderer>().materials = tempMaterials;
+                        myPlayerData.soldierObjects[tempId] = null;
+                        myPlayerData.positionIdMatcher[Convert.ToInt32(myPlayerData.soldiers[tempId]["posI"]) * 10 + Convert.ToInt32(myPlayerData.soldiers[tempId]["posJ"])] = Convert.ToString(msg.listdictdata[i]["newId"]);
 
+                    }
                 }
                 else if (Convert.ToString(msg.listdictdata[i]["action"]) == "add")
                 {
                     Debug.Log("Action: add");
                     int tempPos = Convert.ToInt32(msg.listdictdata[i]["pos"]);
                     int tempPower = Convert.ToInt32(msg.listdictdata[i]["power"]);
-                    if (Convert.ToString(msg.listdictdata[i]["type"]) == "knight"){
-                        myPlayerData.addKnight(tempPos / 10, tempPos % 10, tempPower, "king",tempId);
+                    if (Convert.ToString(msg.listdictdata[i]["type"]) == "knight")
+                    {
+                        myPlayerData.addKnight(tempPos / 10, tempPos % 10, tempPower, "king", tempId);
                         float tempx = (Convert.ToInt32(tempPos % 10) - 5) * (2.5f) + (1.25f);
                         float tempy = (5 - Convert.ToInt32(tempPos / 10)) * (2.5f) - (1.25f);
                         GameObject tempObject = Instantiate(pieceObject, new Vector3(tempx, 0.3f, tempy), Quaternion.Euler(-90f, myPlayerData.angleYOffSet, 0f)) as GameObject;
@@ -684,7 +781,7 @@ public class GameManagerScript : MonoBehaviour
                         float tempx = (Convert.ToInt32(tempPos % 10) - 5) * (2.5f) + (1.25f);
                         float tempy = (5 - Convert.ToInt32(tempPos / 10)) * (2.5f) - (1.25f);
                         GameObject tempObject = Instantiate(pieceObject, new Vector3(tempx, 0.3f, tempy), Quaternion.Euler(-90f, myPlayerData.angleYOffSet, 0f)) as GameObject;
-                        tempObject.GetComponent<MeshFilter>().mesh =soldiersMesh[tempPower - 1];
+                        tempObject.GetComponent<MeshFilter>().mesh = soldiersMesh[tempPower - 1];
                         Material[] tempMaterials = tempObject.GetComponent<MeshRenderer>().materials;
                         tempMaterials[0] = myMat;
                         tempMaterials[1] = bronzeMat;
@@ -696,7 +793,7 @@ public class GameManagerScript : MonoBehaviour
                 {
                     Debug.Log("Action: Dead");
                     string tempColor = Convert.ToString(msg.listdictdata[i]["color"]);
- 
+
                     if (tempColor == "gold")
                     {
                         if (Convert.ToString(myPlayerData.lord1["id"]) == tempId)
@@ -704,12 +801,12 @@ public class GameManagerScript : MonoBehaviour
                             myPlayerData.lord1["state"] = "dead";
                             Destroy(myPlayerData.lord1Object);
                             myPlayerData.lord1Object = null;
-                            myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.lord1["posI"]) *10+Convert.ToInt32(myPlayerData.lord1["posJ"]));
+                            myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.lord1["posI"]) * 10 + Convert.ToInt32(myPlayerData.lord1["posJ"]));
                         }
                         else if (Convert.ToString(myPlayerData.lord2["id"]) == tempId)
                         {
                             myPlayerData.lord2["state"] = "dead";
-                            Destroy(myPlayerData.lord1Object);
+                            Destroy(myPlayerData.lord2Object);
                             myPlayerData.lord2Object = null;
                             myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.lord2["posI"]) * 10 + Convert.ToInt32(myPlayerData.lord2["posJ"]));
                         }
@@ -742,11 +839,11 @@ public class GameManagerScript : MonoBehaviour
                         }
                     }
                 }
-                else if(Convert.ToString(msg.listdictdata[i]["action"]) == "injured")
+                else if (Convert.ToString(msg.listdictdata[i]["action"]) == "injured")
                 {
                     Debug.Log("Action: Injured");
                     string tempColor = Convert.ToString(msg.listdictdata[i]["color"]);
-
+                    string fortId = Convert.ToString(msg.listdictdata[i]["fortId"]);
                     if (tempColor == "silver")
                     {
                         if (Convert.ToString(myPlayerData.commanderl1["id"]) == tempId)
@@ -755,7 +852,7 @@ public class GameManagerScript : MonoBehaviour
                             Destroy(myPlayerData.commanderl1Object);
                             myPlayerData.commanderl1Object = null;
                             myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.commanderl1["posI"]) * 10 + Convert.ToInt32(myPlayerData.commanderl1["posJ"]));
-                            myPlayerData.fort1.Add(tempId);
+                            myPlayerData.fort1.Add(fortId);
                         }
                         else if (Convert.ToString(myPlayerData.commanderl2["id"]) == tempId)
                         {
@@ -763,7 +860,7 @@ public class GameManagerScript : MonoBehaviour
                             Destroy(myPlayerData.commanderl2Object);
                             myPlayerData.commanderl2Object = null;
                             myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.commanderl2["posI"]) * 10 + Convert.ToInt32(myPlayerData.commanderl2["posJ"]));
-                            myPlayerData.fort2.Add(tempId);
+                            myPlayerData.fort2.Add(fortId);
                         }
                         else if (myPlayerData.knights.ContainsKey(tempId))
                         {
@@ -773,11 +870,11 @@ public class GameManagerScript : MonoBehaviour
                             myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.knights[tempId]["posI"]) * 10 + Convert.ToInt32(myPlayerData.knights[tempId]["posJ"]));
                             if (Convert.ToString(msg.listdictdata[i]["fort"]) == "1")
                             {
-                                myPlayerData.fort1.Add(tempId);
+                                myPlayerData.fort1.Add(fortId);
                             }
                             else
                             {
-                                myPlayerData.fort2.Add(tempId);
+                                myPlayerData.fort2.Add(fortId);
                             }
                         }
                     }
@@ -791,11 +888,11 @@ public class GameManagerScript : MonoBehaviour
                             myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.soldiers[tempId]["posI"]) * 10 + Convert.ToInt32(myPlayerData.soldiers[tempId]["posJ"]));
                             if (Convert.ToString(msg.listdictdata[i]["fort"]) == "1")
                             {
-                                myPlayerData.fort1.Add(tempId);
+                                myPlayerData.fort1.Add(fortId);
                             }
                             else
                             {
-                                myPlayerData.fort2.Add(tempId);
+                                myPlayerData.fort2.Add(fortId);
                             }
                         }
                     }
@@ -810,9 +907,9 @@ public class GameManagerScript : MonoBehaviour
                         {
                             myPlayerData.commanderl1["state"] = "change";
                             myPlayerData.positionIdMatcher.Remove(Convert.ToInt32(myPlayerData.commanderl1["posI"]) * 10 + Convert.ToInt32(myPlayerData.commanderl1["posJ"]));
-                            myPlayerData.addKnight(Convert.ToInt32(myPlayerData.commanderl1["posI"]), Convert.ToInt32(myPlayerData.commanderl1["posJ"]), 5,"king", Convert.ToString(msg.listdictdata[i]["newId"]));
+                            myPlayerData.addKnight(Convert.ToInt32(myPlayerData.commanderl1["posI"]), Convert.ToInt32(myPlayerData.commanderl1["posJ"]), 5, "king", Convert.ToString(msg.listdictdata[i]["newId"]));
                             myPlayerData.commanderl1Object.GetComponent<MeshFilter>().mesh = knightsMesh[0];
-                            myPlayerData.knightObjects.Add(Convert.ToString(msg.listdictdata[i]["newId"]),myPlayerData.commanderl1Object);
+                            myPlayerData.knightObjects.Add(Convert.ToString(msg.listdictdata[i]["newId"]), myPlayerData.commanderl1Object);
                             myPlayerData.commanderl1Object = null;
                         }
                         else if (Convert.ToString(myPlayerData.commanderl2["id"]) == tempId)
@@ -831,21 +928,22 @@ public class GameManagerScript : MonoBehaviour
                             myPlayerData.knightObjects[tempId].GetComponent<MeshFilter>().mesh = knightsMesh[0];
                         }
                     }
-                    else if(tempColor=="bronze"){
+                    else if (tempColor == "bronze")
+                    {
                         if (myPlayerData.soldiers.ContainsKey(tempId))
                         {
                             myPlayerData.soldiers[tempId]["power"] = 1;
                             myPlayerData.soldiers[tempId]["serves"] = "king";
-                            myPlayerData.soldierObjects[tempId].GetComponent<MeshFilter>().mesh =soldiersMesh[0];
+                            myPlayerData.soldierObjects[tempId].GetComponent<MeshFilter>().mesh = soldiersMesh[0];
                         }
                     }
                 }
-                else if(Convert.ToString(msg.listdictdata[i]["action"]) == "clearfort")
+                else if (Convert.ToString(msg.listdictdata[i]["action"]) == "clearfort")
                 {
                     Debug.Log("Action: Clear Fort");
                     if (Convert.ToString(msg.listdictdata[i]["fort"]) == "1")
                     {
-                        for(int j = 0; j < myPlayerData.fort1Objects.Count; j++)
+                        for (int j = 0; j < myPlayerData.fort1Objects.Count; j++)
                         {
                             Destroy(myPlayerData.fort1Objects[j]);
                         }
@@ -866,8 +964,11 @@ public class GameManagerScript : MonoBehaviour
             else
             {
                 string tempId = Convert.ToString(msg.listdictdata[i]["id"]);
+                Debug.Log(tempId);
+                Debug.Log("Opponent Action");
                 if (Convert.ToString(msg.listdictdata[i]["action"]) == "move")
                 {
+                    Debug.Log("Action: move");
                     boardPosStates = msg.listData.ConvertAll<int>(k => Convert.ToInt32(k));
                     //oppPlayerData.positionIdMatcher.Remove(Convert.ToInt32(msg.listdictdata[i]["source"]));
                     //oppPlayerData.positionIdMatcher.Add(Convert.ToInt32(msg.listdictdata[i]["dest"]), tempId);
@@ -923,9 +1024,30 @@ public class GameManagerScript : MonoBehaviour
                         }
                     }
                 }
-                else if (Convert.ToString(msg.listdictdata[i]["action"]) == "power")
+                else if (Convert.ToString(msg.listdictdata[i]["action"]) == "upgrade")
                 {
+                    Debug.Log("Action: upgrade");
+                    if (Convert.ToString(msg.listdictdata[i]["color"]) == "silver")
+                    {
+                        oppPlayerData.silver[tempId]["state"] = "upgraded";
+                        oppPlayerData.AddSilver(Convert.ToInt32(oppPlayerData.silver[tempId]["posI"]), Convert.ToInt32(oppPlayerData.silver[tempId]["posJ"]), Convert.ToString(msg.listdictdata[i]["newId"]));
+                        oppPlayerData.silverObjects.Add(Convert.ToString(msg.listdictdata[i]["newId"]), oppPlayerData.silverObjects[tempId]);
+                        oppPlayerData.silverObjects[tempId] = null;
 
+                    }
+                    else if (Convert.ToString(msg.listdictdata[i]["color"]) == "bronze")
+                    {
+                        oppPlayerData.bronze[tempId]["state"] = "upgraded";
+                        oppPlayerData.AddSilver(Convert.ToInt32(oppPlayerData.bronze[tempId]["posI"]), Convert.ToInt32(oppPlayerData.bronze[tempId]["posJ"]), Convert.ToString(msg.listdictdata[i]["newId"]));
+                        oppPlayerData.silverObjects.Add(Convert.ToString(msg.listdictdata[i]["newId"]), oppPlayerData.bronzeObjects[tempId]);
+                        Material[] tempMaterials = oppPlayerData.silverObjects[Convert.ToString(msg.listdictdata[i]["newId"])].GetComponent<MeshRenderer>().materials;
+                        tempMaterials[0] = oppMat;
+                        tempMaterials[1] = silverMat;
+                        oppPlayerData.silverObjects[Convert.ToString(msg.listdictdata[i]["newId"])].GetComponent<MeshRenderer>().materials = tempMaterials;
+                        oppPlayerData.bronzeObjects[tempId] = null;
+
+
+                    }
                 }
                 else if (Convert.ToString(msg.listdictdata[i]["action"]) == "add")
                 {
@@ -934,8 +1056,8 @@ public class GameManagerScript : MonoBehaviour
                     if (Convert.ToString(msg.listdictdata[i]["color"]) == "silver")
                     {
                         oppPlayerData.AddSilver(tempPos / 10, tempPos % 10, tempId);
-                        float tempx = (Convert.ToInt32(tempPos%10) - 5) * (2.5f) + (1.25f);
-                        float tempy = (5 - Convert.ToInt32(tempPos/10)) * (2.5f) - (1.25f);
+                        float tempx = (Convert.ToInt32(tempPos % 10) - 5) * (2.5f) + (1.25f);
+                        float tempy = (5 - Convert.ToInt32(tempPos / 10)) * (2.5f) - (1.25f);
                         GameObject tempObject = Instantiate(pieceObject, new Vector3(tempx, 0.3f, tempy), Quaternion.Euler(-90f, oppPlayerData.angleYOffSet, 0f)) as GameObject;
                         tempObject.GetComponent<MeshFilter>().mesh = emptyMesh;
                         Material[] tempMaterials = tempObject.GetComponent<MeshRenderer>().materials;
@@ -965,21 +1087,21 @@ public class GameManagerScript : MonoBehaviour
 
                     if (tempColor == "gold")
                     {
-                            oppPlayerData.gold[tempId]["state"] = "dead";
-                            Destroy(oppPlayerData.goldObjects[tempId]);
-                            oppPlayerData.goldObjects[tempId] = null;    
+                        oppPlayerData.gold[tempId]["state"] = "dead";
+                        Destroy(oppPlayerData.goldObjects[tempId]);
+                        oppPlayerData.goldObjects[tempId] = null;
                     }
                     else if (tempColor == "silver")
                     {
-                        
-                            oppPlayerData.silver[tempId]["state"] = "dead";
-                            Destroy(oppPlayerData.silverObjects[tempId]);
-                            oppPlayerData.silverObjects[tempId] = null;
+
+                        oppPlayerData.silver[tempId]["state"] = "dead";
+                        Destroy(oppPlayerData.silverObjects[tempId]);
+                        oppPlayerData.silverObjects[tempId] = null;
                     }
                     else if (tempColor == "bronze")
                     {
-                            oppPlayerData.bronze[tempId]["state"] = "dead";
-                            Destroy(oppPlayerData.bronzeObjects[tempId]);
+                        oppPlayerData.bronze[tempId]["state"] = "dead";
+                        Destroy(oppPlayerData.bronzeObjects[tempId]);
                         oppPlayerData.bronzeObjects[tempId] = null;
                     }
                 }
@@ -987,33 +1109,34 @@ public class GameManagerScript : MonoBehaviour
                 {
                     Debug.Log("Action: Injured");
                     string tempColor = Convert.ToString(msg.listdictdata[i]["color"]);
+                    string fortId = Convert.ToString(msg.listdictdata[i]["fortId"]);
                     if (tempColor == "silver")
                     {
-                            oppPlayerData.silver[tempId]["state"] = "injured";
-                            Destroy(oppPlayerData.silverObjects[tempId]);
-                            oppPlayerData.silverObjects[tempId] = null;
-                            if (Convert.ToString(msg.listdictdata[i]["fort"]) == "1")
-                            {
-                                oppPlayerData.fort1.Add(tempId);
-                            }
-                            else
-                            {
-                                oppPlayerData.fort2.Add(tempId);
-                            }
+                        oppPlayerData.silver[tempId]["state"] = "injured";
+                        Destroy(oppPlayerData.silverObjects[tempId]);
+                        oppPlayerData.silverObjects[tempId] = null;
+                        if (Convert.ToString(msg.listdictdata[i]["fort"]) == "1")
+                        {
+                            oppPlayerData.fort1.Add(fortId);
+                        }
+                        else
+                        {
+                            oppPlayerData.fort2.Add(fortId);
+                        }
                     }
                     else if (tempColor == "bronze")
                     {
-                            oppPlayerData.bronze[tempId]["state"] = "injured";
-                            Destroy(oppPlayerData.bronzeObjects[tempId]);
-                            oppPlayerData.bronzeObjects[tempId] = null;
-                            if (Convert.ToString(msg.listdictdata[i]["fort"]) == "1")
-                            {
-                                oppPlayerData.fort1.Add(tempId);
-                            }
-                            else
-                            {
-                                oppPlayerData.fort2.Add(tempId);
-                            }
+                        oppPlayerData.bronze[tempId]["state"] = "injured";
+                        Destroy(oppPlayerData.bronzeObjects[tempId]);
+                        oppPlayerData.bronzeObjects[tempId] = null;
+                        if (Convert.ToString(msg.listdictdata[i]["fort"]) == "1")
+                        {
+                            oppPlayerData.fort1.Add(fortId);
+                        }
+                        else
+                        {
+                            oppPlayerData.fort2.Add(fortId);
+                        }
                     }
                 }
                 else if (Convert.ToString(msg.listdictdata[i]["action"]) == "changeserves")
@@ -1066,8 +1189,17 @@ public class GameManagerScript : MonoBehaviour
             yield return new WaitForEndOfFrame();
         }
         objectToMove.transform.position = end;
+    }
 
-
+    public void GameResult(bool win,string message)
+    {
+        adManager.DisplayAd();
+        showResultPanel();
+        if (win)
+            ResultText.text = "YOU WIN";
+        else
+            ResultText.text = "YOU LOST";
+        ResultMsgText.text = message;
     }
 
     void showLoading()
@@ -1076,6 +1208,7 @@ public class GameManagerScript : MonoBehaviour
         hidePanel(PlayPanel);
         hidePanel(MessagePanel);
         hidePanel(StrategiesPanel);
+        hidePanel(ResultPanel);
     }
 
     void showStrategyPanel()
@@ -1083,6 +1216,7 @@ public class GameManagerScript : MonoBehaviour
         hidePanel(LoadingPanel);
         hidePanel(PlayPanel);
         hidePanel(MessagePanel);
+        hidePanel(ResultPanel);
         showPanel(StrategiesPanel);
     }
 
@@ -1091,6 +1225,16 @@ public class GameManagerScript : MonoBehaviour
         hidePanel(LoadingPanel);
         showPanel(PlayPanel);
         hidePanel(MessagePanel);
+        hidePanel(ResultPanel);
+        hidePanel(StrategiesPanel);
+    }
+
+    void showResultPanel()
+    {
+        hidePanel(LoadingPanel);
+        hidePanel(PlayPanel);
+        hidePanel(MessagePanel);
+        showPanel(ResultPanel);
         hidePanel(StrategiesPanel);
     }
 
@@ -1104,51 +1248,5 @@ public class GameManagerScript : MonoBehaviour
     {
         x.alpha = 1f;
         x.blocksRaycasts = true;
-    }
-
-    private void QForMainThread(Action fn)
-    {
-        lock (_mainThreadQueue)
-        {
-            _mainThreadQueue.Enqueue(() => { fn(); });
-        }
-    }
-
-    private void QForMainThread<T1>(Action<T1> fn, T1 p1)
-    {
-        lock (_mainThreadQueue)
-        {
-            _mainThreadQueue.Enqueue(() => { fn(p1); });
-        }
-    }
-
-    private void QForMainThread<T1, T2>(Action<T1, T2> fn, T1 p1, T2 p2)
-    {
-        lock (_mainThreadQueue)
-        {
-            _mainThreadQueue.Enqueue(() => { fn(p1, p2); });
-        }
-    }
-
-    private void QForMainThread<T1, T2, T3>(Action<T1, T2, T3> fn, T1 p1, T2 p2, T3 p3)
-    {
-        lock (_mainThreadQueue)
-        {
-            _mainThreadQueue.Enqueue(() => { fn(p1, p2, p3); });
-        }
-    }
-
-    private void RunMainThreadQueueActions()
-    {
-        // as our server messages come in on their own thread
-        // we need to queue them up and run them on the main thread
-        // when the methods need to interact with Unity
-        lock (_mainThreadQueue)
-        {
-            while (_mainThreadQueue.Count > 0)
-            {
-                _mainThreadQueue.Dequeue().Invoke();
-            }
-        }
     }
 }

@@ -18,7 +18,6 @@ using Facebook.Unity;
 
 public class LoginClient : MonoBehaviour
 {
-
     private Dataset playerInfo;
     private CognitoSyncManager syncManager;
     private CognitoAWSCredentials awsCredentials;
@@ -41,9 +40,13 @@ public class LoginClient : MonoBehaviour
     private int currentTempStrategy = -1;
     private Dictionary<string, int> currentStrategy;
 
+    public delegate void UserDataCB(Users userData);
+    public UserDataCB udcb;
+
+    public Users curUserData;
+
     void Awake()
     {
-
         loading = true;
         sync = false;
         loginPage = true;
@@ -90,7 +93,6 @@ public class LoginClient : MonoBehaviour
         playerInfo = syncManager.OpenOrCreateDataset("playerInfo");
         playerInfo.OnSyncSuccess += SyncSuccessCallBack;
         fbandcsInitiated = fbandcsInitiated + 1;
-
     }
 
     void FbInitCallBack()
@@ -152,9 +154,9 @@ public class LoginClient : MonoBehaviour
             UserData.provider = "FB";
             UserData.uid = playerInfo.Get("uid");
             Debug.Log("Player Data Synchronized");
-            loading = false;
             sync = true;
             loginPage = true;
+            loading = false;
         }
     }
 
@@ -178,13 +180,24 @@ public class LoginClient : MonoBehaviour
         FB.API("me?fields=first_name", HttpMethod.GET, NameCallBack);
     }
 
+    public void fetchPicture()
+    {
+        FB.API("me/picture?width=100&height=100", HttpMethod.GET, PictureCallBack);
+    }
+
     void NameCallBack(IGraphResult result)
     {
         Debug.Log("Retrieved name from fb");
         IDictionary<string, object> profil = result.ResultDictionary;
         playerInfo.Put("name", profil["first_name"].ToString());
-        UploadUserData();
+        fetchPicture();
         //playerInfo.SynchronizeOnConnectivity();
+    }
+
+    void PictureCallBack(IGraphResult result)
+    {
+
+        UploadUserData();
     }
 
     void UpdateUI()
@@ -201,19 +214,27 @@ public class LoginClient : MonoBehaviour
         Debug.Log("Uploading user data to DynamoDB");
         Users myUser = new Users
         {
-            uid = playerInfo.Get("uid"),
+            uid = awsCredentials.GetIdentityId(),
             name = playerInfo.Get("name"),
-            identityId = awsCredentials.GetIdentityId(),
+            providerId = playerInfo.Get("uid"),
             provider = "FB",
             GameSessionIds = new List<string> { },
             GameSessions = new List<Dictionary<string, string>> { },
-            Strategies = new List<Dictionary<string, int>> { }
+            Strategies = new List<Dictionary<string, int>> { },
+            gamesPlayed = 0,
+            gamesWon = 0,
+            gamesLost = 0,
+            level = "NOVICE",
+            levelPoints = 0,
+            tickets = 2,
+            imageUrl = null
         };
         myUser.Strategies.Add(StrategyManagerScript.randomStrategyGenerator());
         dbContext.SaveAsync(myUser, (result) => {
             if (result.Exception == null)
             {
                 Debug.Log("Data uploaded to DynamoDB");
+                curUserData = myUser;
                 playerInfo.SynchronizeOnConnectivity();
             }
             else
@@ -268,11 +289,35 @@ public class LoginClient : MonoBehaviour
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
+    public void GetUserData(UserDataCB udcb)
+    {
+        this.udcb = udcb;
+        Debug.Log("Started Fetching User Data");
+        dbContext.LoadAsync<Users>(awsCredentials.GetIdentityId(), (result) => {
+            Debug.Log("Load Result achieved");
+            if (result.Exception != null)
+            {
+                Debug.Log(result.Exception);
+                if (udcb != null)
+                {
+                    udcb(null);
+                }
+                return;
+            }
+            Debug.Log("Fetch Data Successful:");
+            curUserData = result.Result as Users;
+            if (udcb != null)
+            {
+                udcb(curUserData);
+            }
+        });
+    }
+
     public void getUserStrategies(StrategyManagerScript.LoadStrategyCallBack x)
     {
         lscb = x;
         Debug.Log("Started Fetching User Data");
-        dbContext.LoadAsync<Users>("2689486394707778", (result) =>{
+        dbContext.LoadAsync<Users>(awsCredentials.GetIdentityId(), (result) =>{
             Debug.Log("Load Result achieved");
             if (result.Exception != null)
             {
@@ -293,7 +338,7 @@ public class LoginClient : MonoBehaviour
         sscb = xcb;
         currentTempStrategy = x;
         currentStrategy = dictx;
-        dbContext.LoadAsync<Users>(playerInfo.Get("uid"), (result) =>
+        dbContext.LoadAsync<Users>(awsCredentials.GetIdentityId(), (result) =>
         {
             if (result.Exception == null)
             {
@@ -347,7 +392,7 @@ public class Users
     [DynamoDBHashKey]   // Hash key.
     public string uid { get; set; }
     [DynamoDBProperty]
-    public string identityId { get; set; }
+    public string providerId { get; set; }
     [DynamoDBProperty]
     public string name { get; set; }
     [DynamoDBProperty]
@@ -358,4 +403,18 @@ public class Users
     public List<Dictionary<string,int>> Strategies { get; set; }
     [DynamoDBProperty]
     public List<Dictionary<string, string>> GameSessions { get; set; }
+    [DynamoDBProperty]
+    public int gamesPlayed { get; set; }
+    [DynamoDBProperty]
+    public int gamesWon { get; set; }
+    [DynamoDBProperty]
+    public int gamesLost { get; set; }
+    [DynamoDBProperty]
+    public int levelPoints { get; set; }
+    [DynamoDBProperty]
+    public string level { get; set; }
+    [DynamoDBProperty]
+    public int tickets { get; set; }
+    [DynamoDBProperty]
+    public string imageUrl { get; set; }
 }

@@ -20,12 +20,14 @@ public class NetworkClient
 	private Client.gameStartCallBack gscb;
 	private Client.playerJoinedCallBack pjcb;
 	private Client.connectionCallBack ccb;
+	private Client.opponentLeftCallBack opcb;
 
-	public NetworkClient(Client.gameStartCallBack gscb,Client.playerJoinedCallBack pjcb, Client.connectionCallBack ccb)
+	public NetworkClient(Client.gameStartCallBack gscb,Client.playerJoinedCallBack pjcb, Client.connectionCallBack ccb, Client.opponentLeftCallBack opcb)
     {
 		this.gscb = gscb;
 		this.pjcb = pjcb;
 		this.ccb = ccb;
+		this.opcb = opcb;
     }
 
 	// Calls the matchmaking client to do matchmaking against the backend and then connects to the game server with TCP
@@ -37,54 +39,6 @@ public class NetworkClient
         yield return null;
 
 		Connect();
-
-		/*var matchMakingRequestInfo = this.matchmakingClient.RequestMatchMaking();
-		Debug.Log("TicketId: " + matchMakingRequestInfo.TicketId);
-
-		if (matchMakingRequestInfo != null)
-		{
-			bool matchmakingDone = false;
-			int tries = 0;
-			while (!matchmakingDone)
-			{
-				Debug.Log("Checking match status...");
-				GameObject.FindObjectOfType<UIManager>().SetTextBox("Checking match status...");
-				yield return null;
-				this.matchStatusInfo = this.matchmakingClient.RequestMatchStatus(matchMakingRequestInfo.TicketId);
-				if (matchStatusInfo.PlayerSessionId.Equals("NotPlacedYet"))
-				{
-					Debug.Log("Still waiting for placement");
-					GameObject.FindObjectOfType<UIManager>().SetTextBox("Still waiting for placement...");
-					yield return new WaitForSeconds(1.0f);
-				}
-				else
-				{
-					Debug.Log("Matchmaking done!");
-					GameObject.FindObjectOfType<UIManager>().SetTextBox("Matchmaking done! Connecting to server...");
-					yield return null;
-					matchmakingDone = true;
-
-                    // Matchmaking done, connect to the servers
-					Connect();
-				}
-				tries++;
-
-                // Return null if we failed after 20 tries
-				if (tries >= 20)
-				{
-					GameObject.FindObjectOfType<UIManager>().SetTextBox("Aborting matchmaking, no match done on 20 seconds");
-					Debug.Log("Aborting matchmaking, no match done on 20 seconds");
-					yield return null;
-					break;
-				}
-				yield return null;
-			}
-		}
-		else
-		{
-			GameObject.FindObjectOfType<UIManager>().SetTextBox("Matchmaking failed! Not connected.");
-			Debug.Log("Matchmaking request failed!");
-		}*/
 
 		yield return null;
 	}
@@ -254,10 +208,10 @@ public class NetworkClient
 	private void HandleOtherPlayerLeft(SimpleMessage message)
 	{
 		Debug.Log("Opponent player left, you won the game");
+		opcb();
 		NetworkStream stream = client.GetStream();
 		stream.Close();
 		client.Close();
-		client = null;
 	}
 
 	private void HandleGameStarted(SimpleMessage msg)
