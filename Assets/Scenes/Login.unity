@@ -1117,6 +1117,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   loading: 1
+  fbauth: 0
+  gauth: 0
 --- !u!4 &1249706896
 Transform:
   m_ObjectHideFlags: 0
@@ -1247,6 +1249,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   facebookLoginButton: {fileID: 599055737}
+  googleLoginButton: {fileID: 1474461269}
   loadingPanel: {fileID: 1342442133}
   loginPanel: {fileID: 1754589965}
   loginClient: {fileID: 0}

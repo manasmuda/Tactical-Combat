@@ -15,12 +15,16 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using UnityEngine.SceneManagement;
 using Facebook.Unity;
+using GooglePlayGames;
+using GooglePlayGames.BasicApi;
+using GooglePlayGames.BasicApi.Multiplayer;
+using UnityEngine.SocialPlatforms;
 
 public class LoginClient : MonoBehaviour
 {
     private Dataset playerInfo;
     private CognitoSyncManager syncManager;
-    private CognitoAWSCredentials awsCredentials;
+    public CognitoAWSCredentials awsCredentials;
     private CognitoAWSCredentials dbUsersCredentials;
     private DynamoDBContext dbContext;
     private AmazonDynamoDBClient dbClient;
@@ -43,7 +47,18 @@ public class LoginClient : MonoBehaviour
     public delegate void UserDataCB(Users userData);
     public UserDataCB udcb;
 
+    public delegate void PictureCallBack(Texture2D texture);
+    public PictureCallBack pcb;
+
+    public Texture2D fbTexture;
+    public Texture2D googleTexture;
+
+    public bool fbauth = false;
+    public bool gauth = false;
+
     public Users curUserData;
+
+    public bool firstTime = false;
 
     void Awake()
     {
@@ -92,7 +107,13 @@ public class LoginClient : MonoBehaviour
         dbContext = new DynamoDBContext(dbClient);
         playerInfo = syncManager.OpenOrCreateDataset("playerInfo");
         playerInfo.OnSyncSuccess += SyncSuccessCallBack;
+        playerInfo.OnSyncFailure += HandleSyncFailure;
         fbandcsInitiated = fbandcsInitiated + 1;
+        PlayGamesClientConfiguration config = new PlayGamesClientConfiguration.Builder().RequestEmail().RequestIdToken().RequestServerAuthCode(false).Build();
+        PlayGamesPlatform.InitializeInstance(config);
+        PlayGamesPlatform.DebugLogEnabled = true;
+        PlayGamesPlatform.Activate();
+        //Social.localUser.Authenticate(GoogleLoginCallback);
     }
 
     void FbInitCallBack()
@@ -115,6 +136,8 @@ public class LoginClient : MonoBehaviour
         if (result.Error == null)
         {
             Debug.Log("Facebook login successfull");
+            fbauth = true;
+            gauth = false;
             string uid = AccessToken.CurrentAccessToken.UserId;
             Debug.Log("uid is null");
             if (playerInfo != null && !string.IsNullOrEmpty(playerInfo.Get("uid")) && !uid.Equals(playerInfo.Get("uid")))
@@ -134,6 +157,59 @@ public class LoginClient : MonoBehaviour
         }
     }
 
+    public void GoogleLogin()
+    {
+        Social.localUser.Authenticate((bool success) =>
+        {
+            if (success)
+            {
+                Debug.Log("Google login successfull");
+                ((GooglePlayGames.PlayGamesPlatform)Social.Active).SetGravityForPopups(Gravity.BOTTOM);
+                fbauth = false;
+                gauth = true;
+                string uid = Social.localUser.id;
+                Debug.Log("uid is null");
+                Debug.Log("mPlatform.GetIdToken " + ((PlayGamesLocalUser)Social.localUser).mPlatform.GetIdToken());
+                Debug.Log("Social.localUser...GetIdToken " + ((PlayGamesLocalUser)Social.localUser).GetIdToken());
+                Debug.Log("PlayGamesPlatform...GetServerAuthCode " + PlayGamesPlatform.Instance.GetServerAuthCode());
+                Debug.Log("PlayGamesPlatform...GetIdToken " + PlayGamesPlatform.Instance.GetIdToken());
+                if (playerInfo != null && !string.IsNullOrEmpty(playerInfo.Get("uid")) && !uid.Equals(playerInfo.Get("uid")))
+                {
+                    awsCredentials.Clear();
+                    playerInfo.Delete();
+                }
+                Debug.Log("aws credentials is null");
+                string token = PlayGamesPlatform.Instance.GetIdToken();
+                awsCredentials.AddLogin("accounts.google.com", token);
+                Debug.Log(token);
+                Debug.Log("playerInfo is null");
+                playerInfo.SynchronizeOnConnectivity();
+                loading = true;
+            }
+            else
+            {
+                Debug.Log("Google Login unsuccessfully");
+            }
+        });
+    }
+
+    private void HandleSyncFailure(object sender, SyncFailureEventArgs e)
+    {
+        Dataset dataset = sender as Dataset;
+        if (dataset.Metadata != null)
+        {
+            Debug.Log("Sync failed for dataset : " + dataset.Metadata.DatasetName);
+        }
+        else
+        {
+            Debug.Log("Sync failed");
+        }
+        // Handle the error
+        Debug.Log(e.Exception);
+        Debug.Log(e.Exception.Message);
+        Debug.Log(e.Exception.InnerException);
+    }
+
     void SyncSuccessCallBack(object sender, SyncSuccessEventArgs e)
     {
         Debug.Log("Synchronize Successfull");
@@ -144,15 +220,28 @@ public class LoginClient : MonoBehaviour
         }
         if (string.IsNullOrEmpty(playerInfo.Get("uid")))
         {
+            firstTime = true;
             Debug.Log("Player Data Not Updated");
-            playerInfo.Put("uid", AccessToken.CurrentAccessToken.UserId);
-            fetchFBName();
+            if (fbauth)
+            {
+                playerInfo.Put("uid", AccessToken.CurrentAccessToken.UserId);
+                fetchFBName();
+            }
+            else if (gauth)
+            {
+                playerInfo.Put("uid", Social.localUser.id);
+                playerInfo.Put("name", Social.localUser.userName);
+                UploadUserData("G");
+            }
         }
         else
         {
             UserData.name = playerInfo.Get("name");
-            UserData.provider = "FB";
             UserData.uid = playerInfo.Get("uid");
+            if (fbauth)
+                UserData.provider = "FB";
+            else if (gauth)
+                UserData.provider = "G";
             Debug.Log("Player Data Synchronized");
             sync = true;
             loginPage = true;
@@ -167,7 +256,14 @@ public class LoginClient : MonoBehaviour
 
     public void Logout()
     {
-        FB.LogOut();
+        if (fbauth)
+        {
+            FB.LogOut();
+        }
+        else if (gauth)
+        {
+            PlayGamesPlatform.Instance.SignOut();
+        }
         awsCredentials.ClearCredentials();
         UserData.name = null;
         UserData.provider = null;
@@ -180,9 +276,17 @@ public class LoginClient : MonoBehaviour
         FB.API("me?fields=first_name", HttpMethod.GET, NameCallBack);
     }
 
-    public void fetchPicture()
+    public void getFBProfileImage(PictureCallBack pcb)
     {
-        FB.API("me/picture?width=100&height=100", HttpMethod.GET, PictureCallBack);
+        this.pcb = pcb;
+        if (fbTexture != null)
+        {
+            this.pcb(fbTexture);
+        }
+        else
+        {
+            FB.API("me/picture?width=100&height=100", HttpMethod.GET, FBPictureCallBack);
+        }    
     }
 
     void NameCallBack(IGraphResult result)
@@ -190,15 +294,57 @@ public class LoginClient : MonoBehaviour
         Debug.Log("Retrieved name from fb");
         IDictionary<string, object> profil = result.ResultDictionary;
         playerInfo.Put("name", profil["first_name"].ToString());
-        fetchPicture();
+        UploadUserData("FB");
         //playerInfo.SynchronizeOnConnectivity();
     }
 
-    void PictureCallBack(IGraphResult result)
+    void FBPictureCallBack(IGraphResult result)
     {
-
-        UploadUserData();
+        Debug.Log("FB picture cb");
+        fbTexture = result.Texture;
+        Debug.Log("Fb texture loaded");
+        this.pcb(result.Texture);
     }
+
+    public void getGoogleProfileImage(PictureCallBack pcb)
+    {
+        Debug.Log("Goole picture request");
+        this.pcb = pcb;
+        if (googleTexture != null)
+        {
+            this.pcb(googleTexture);
+        }
+        else
+        {
+            //Participant p = PlayGamesPlatform.Instance.RealTime.GetSelf();
+            //Debug.Log(p.Player.AvatarURL);
+            //Debug.Log(Social.localUser.image);
+            //Debug.Log(((PlayGamesLocalUser)Social.localUser).mPlatform.image);
+            //Debug.Log(((PlayGamesLocalUser)Social.localUser).image);
+            
+            //StartCoroutine(LoadImage(Social.localUser.image));
+        }
+    }
+
+    IEnumerator LoadGoogleImage()
+    {
+        while (Social.localUser.image == null)
+        {
+            Debug.Log("IMAGE NOT FOUND");
+            yield return null;
+        }
+        Debug.Log("Image Found");
+        googleTexture = Social.localUser.image;
+        this.pcb(Social.localUser.image);
+        /*using (WWW www = new WWW(url))
+        {
+            yield return www;
+            www.LoadImageIntoTexture(googleTexture);
+            //ImgMine.sprite = Sprite.Create(tex, new Rect(0.0f, 0.0f, tex.width, tex.height), new Vector2(0f, 0f));
+            this.pcb(googleTexture);
+        }*/
+    }
+
 
     void UpdateUI()
     {
@@ -206,10 +352,18 @@ public class LoginClient : MonoBehaviour
         loginPage = false;
         Debug.Log(playerInfo.Get("name"));
         Debug.Log(playerInfo.Get("uid"));
-        SceneManager.LoadScene("Home");
+        if (!firstTime) {
+            SceneManager.LoadScene("Home");
+        }
+        else
+        {
+            firstTime = false;
+            SceneManager.LoadScene("Instructions");
+        }
+
     }
 
-    private void UploadUserData()
+    private void UploadUserData(string provider)
     {
         Debug.Log("Uploading user data to DynamoDB");
         Users myUser = new Users
@@ -217,7 +371,7 @@ public class LoginClient : MonoBehaviour
             uid = awsCredentials.GetIdentityId(),
             name = playerInfo.Get("name"),
             providerId = playerInfo.Get("uid"),
-            provider = "FB",
+            provider = provider,
             GameSessionIds = new List<string> { },
             GameSessions = new List<Dictionary<string, string>> { },
             Strategies = new List<Dictionary<string, int>> { },
@@ -267,17 +421,42 @@ public class LoginClient : MonoBehaviour
             loading = false;
             if (FB.IsLoggedIn)
             {
+                fbauth = true;
+                gauth = false;
                 loading = true;
                 awsCredentials.AddLogin("graph.facebook.com", AccessToken.CurrentAccessToken.TokenString);
-                Debug.Log("Already LoggedIn");
+                Debug.Log("Already LoggedIn FB");
                 playerInfo.SynchronizeOnConnectivity();
+                fbandcsInitiated = 0;
             }
-            else
+            else// if (PlayGamesPlatform.Instance.IsAuthenticated() || Social.localUser.authenticated)
+            {
+                PlayGamesPlatform.Instance.Authenticate(SignInInteractivity.NoPrompt, (result) => {
+                    // handle results
+                    Debug.Log(result);
+                    if (result==GooglePlayGames.BasicApi.SignInStatus.Success)
+                    {
+                        gauth = true;
+                        fbauth = false;
+                        loading = true;
+                        awsCredentials.AddLogin("accounts.google.com", PlayGamesPlatform.Instance.GetIdToken());
+                        Debug.Log("Already LoggedIn G");
+                        playerInfo.SynchronizeOnConnectivity();
+                    }
+                    else
+                    {
+                        fbauth = false;
+                        gauth = false;
+                        loading = false;
+                    }
+                });
+            }
+            /*else
             {
                 loading = false;
-            }
+            }*/
         }
-        if (FB.IsLoggedIn && sync && loginPage)
+        if ((FB.IsLoggedIn || Social.localUser.authenticated) && sync && loginPage)
         {
             UpdateUI();
         }
@@ -327,6 +506,7 @@ public class LoginClient : MonoBehaviour
             }
             Debug.Log("Fetch Data Successful:");
             Users retrievedUserData = result.Result as Users;
+            curUserData = retrievedUserData;
             lscb(retrievedUserData.Strategies);
             Debug.Log("Fetch Data Successful:"+ retrievedUserData.Strategies.Count);
         });
@@ -345,23 +525,24 @@ public class LoginClient : MonoBehaviour
                 Users userRetrieved = result.Result as Users;
                 if (userRetrieved != null)
                 {
-                    if (userRetrieved.Strategies.Count > currentTempStrategy)
+                    curUserData = userRetrieved;
+                    if (curUserData.Strategies.Count > currentTempStrategy)
                     {
                         foreach(KeyValuePair<string,int> tempItem in currentStrategy)
                         {
                             Debug.Log(tempItem.Key+":"+tempItem.Value);
                         }
                         Debug.Log("Strategy dict updated");
-                        userRetrieved.Strategies[currentTempStrategy] = currentStrategy;
+                        curUserData.Strategies[currentTempStrategy] = currentStrategy;
                     }
                     else {
-                        userRetrieved.Strategies.Add(currentStrategy);
+                        curUserData.Strategies.Add(currentStrategy);
                     }
                 }
                 else {
-                    userRetrieved.Strategies = new List<Dictionary<string, int>> {currentStrategy};
+                    curUserData.Strategies = new List<Dictionary<string, int>> {currentStrategy};
                 }
-                dbContext.SaveAsync<Users>(userRetrieved, (res) =>
+                dbContext.SaveAsync<Users>(curUserData, (res) =>
                 {
                     if (res.Exception == null)
                     {
@@ -369,7 +550,7 @@ public class LoginClient : MonoBehaviour
                     }
                     else
                     {
-                        Debug.Log("Save: Save Failed:" + result.Exception);
+                        Debug.Log("Save: Save Failed:" + res.Exception);
                         sscb(false);
                     }   
                 });
@@ -381,6 +562,21 @@ public class LoginClient : MonoBehaviour
             }
         });
         
+    }
+
+    public void UpdateUserData()
+    {
+        dbContext.SaveAsync<Users>(curUserData, (res) =>
+        {
+            if (res.Exception == null)
+            {
+                
+            }
+            else
+            {
+                Debug.Log("Save: Save Failed:" + res.Exception);
+            }
+        });
     }
 
 }

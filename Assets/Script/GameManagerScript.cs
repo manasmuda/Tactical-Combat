@@ -186,6 +186,8 @@ public class GameManagerScript : MonoBehaviour
         {
             rewardAwarded = true;
             rewardedImage.enabled=true;
+            loginClient.curUserData.tickets = loginClient.curUserData.tickets + 1;
+            loginClient.UpdateUserData();
         }
     }
 

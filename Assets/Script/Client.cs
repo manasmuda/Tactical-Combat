@@ -53,6 +53,8 @@ public class Client : MonoBehaviour
 
     public static Client clientInstance = null;
 
+    private LoginClient loginClient;
+
     void Awake()
     {
         UnityInitializer.AttachToGameObject(this.gameObject);
@@ -75,6 +77,7 @@ public class Client : MonoBehaviour
     // Called by Unity when the Gameobject is created
     void Start()
     {
+        loginClient = GameObject.Find("LoginClient").GetComponent<LoginClient>();
         // Set up Mobile SDK
     }
 
@@ -89,7 +92,7 @@ public class Client : MonoBehaviour
     }
 
 
-    public void FetchGameAndPlayerSession()
+    public void FetchGameAndPlayerSession(Dictionary<string,string> payLoad)
     {
         
         //StartCoroutine(ConnectToServer());
@@ -101,11 +104,13 @@ public class Client : MonoBehaviour
             RegionEndpoint.APSouth1 // Region
         );
 
-        AmazonLambdaClient client = new AmazonLambdaClient(credentials, RegionEndpoint.APSouth1);
+        string payLoadString = MyDictionaryToJson(payLoad);
+        AmazonLambdaClient client = new AmazonLambdaClient(loginClient.awsCredentials, RegionEndpoint.APSouth1);
         InvokeRequest request = new InvokeRequest
         {
-            FunctionName = "ConnectClientToServer",
-            InvocationType = InvocationType.RequestResponse
+            FunctionName = "TacticalCombatGetGS",
+            InvocationType = InvocationType.RequestResponse,
+            Payload=  payLoadString
         };
 
         loading = true;
@@ -145,6 +150,16 @@ public class Client : MonoBehaviour
                     Debug.LogError(response.Exception);
                 }
             });
+    }
+
+    public string MyDictionaryToJson(Dictionary<string, string> dict)
+    {
+        List<string> entries=new List<string> { };
+        foreach(KeyValuePair<string,string> item in dict)
+        {
+            entries.Add(string.Format("\"{0}\":\"{1}\"", item.Key, item.Value));
+        }
+        return "{" + string.Join(",", entries) + "}";
     }
 
 #if UNITY_ANDROID

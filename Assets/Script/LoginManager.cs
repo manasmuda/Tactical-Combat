@@ -8,6 +8,7 @@ public class LoginManager : MonoBehaviour
 {
 
     public Button facebookLoginButton;
+    public Button googleLoginButton;
 
     public CanvasGroup loadingPanel;
     public CanvasGroup loginPanel;
@@ -20,6 +21,7 @@ public class LoginManager : MonoBehaviour
     void Start()
     {
         facebookLoginButton.onClick.AddListener(FacebookLogin);
+        googleLoginButton.onClick.AddListener(GoogleLogin);
         goHome.onClick.AddListener(GoHome);
         loginClient = GameObject.Find("LoginClient").GetComponent<LoginClient>();
     }
@@ -27,6 +29,11 @@ public class LoginManager : MonoBehaviour
     public void FacebookLogin()
     {
         loginClient.FaceBookLogin();
+    }
+
+    public void GoogleLogin()
+    {
+        loginClient.GoogleLogin();
     }
 
     public void GoHome()

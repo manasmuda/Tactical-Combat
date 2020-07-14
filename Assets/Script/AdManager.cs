@@ -6,6 +6,8 @@ using UnityEngine;
 using GoogleMobileAds.Api;
 using GoogleMobileAds.Common;
 
+using GoogleMobileAds.Api.Mediation.UnityAds;
+
 
 public class AdManager : MonoBehaviour
 {
@@ -32,6 +34,8 @@ public class AdManager : MonoBehaviour
 
     public delegate void RewardAdCallBack(bool x);
 
+    public LoginClient loginClient;
+
     public RewardAdCallBack rwCB;
 
     void Start()
@@ -39,13 +43,15 @@ public class AdManager : MonoBehaviour
         Debug.Log("AdManager Started");
         List<string> deviceIds = new List<string>();
         deviceIds.Add("19EB01B237AD9FBA44A428C0A30235E7");
-        RequestConfiguration requestConfiguration = new RequestConfiguration
+       /* RequestConfiguration requestConfiguration = new RequestConfiguration
             .Builder()
             .SetTestDeviceIds(deviceIds)
             .build();
-        MobileAds.SetRequestConfiguration(requestConfiguration);
+        MobileAds.SetRequestConfiguration(requestConfiguration);*/
         Debug.Log("Test devices are set");
         MobileAds.Initialize(HandleInitCompleteAction);
+        UnityAds.SetGDPRConsentMetaData(true);
+        loginClient = GameObject.Find("LoginClient").GetComponent<LoginClient>();
     }
 
     private void HandleInitCompleteAction(InitializationStatus initstatus)
@@ -158,6 +164,11 @@ public class AdManager : MonoBehaviour
 
         this.rewardedAd = new RewardedAd(adUnitId);
 
+        ServerSideVerificationOptions.Builder ssvb = new ServerSideVerificationOptions.Builder();
+        ssvb.SetUserId(loginClient.awsCredentials.GetIdentityId());
+        ServerSideVerificationOptions ssv = ssvb.Build();
+        this.rewardedAd.SetServerSideVerificationOptions(ssv);
+
         this.rewardedAd.OnAdLoaded += HandleRewardedAdLoaded;
         this.rewardedAd.OnAdFailedToLoad += HandleRewardedAdFailedToLoad;
         this.rewardedAd.OnAdOpening += HandleRewardedAdOpening;
@@ -225,7 +236,7 @@ public class AdManager : MonoBehaviour
         }
         else
         {
-            Debug.Log("Interstitial is unloaded");
+            Debug.Log("Reward Ad is unloaded");
         }
     }
 

@@ -11,4 +11,5 @@ public class PlayerSessionObject
     public string IpAddress;
     public string localhost;
     public int Port;
+    public string RoomId; 
 }
