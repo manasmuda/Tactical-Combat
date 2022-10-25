@@ -8,3 +8,5 @@ The game is a session based game so we used AWS GameLift which create game sessi
 <br>
 <br>
 AWS Cognito provides user authentication and also allow users to use AWS resources like DynamoDB and Lambda functions.
+<br>
+![alt text](https://github.com/manasmuda/Tactical-Combat/blob/master/image.jpg?raw=true)
